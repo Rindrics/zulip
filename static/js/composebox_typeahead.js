@@ -110,12 +110,6 @@ function get_topic_matcher(query) {
     };
 }
 
-// nextFocus is set on a keydown event to indicate where we should focus on keyup.
-// We can't focus at the time of keydown because we need to wait for typeahead.
-// And we can't compute where to focus at the time of keyup because only the keydown
-// has reliable information about whether it was a tab or a shift+tab.
-let nextFocus = false;
-
 exports.should_enter_send = function (e) {
     const has_non_shift_modifier_key = e.ctrlKey || e.metaKey || e.altKey;
     const has_modifier_key = e.shiftKey || has_non_shift_modifier_key;
@@ -174,7 +168,7 @@ exports.handle_enter = function (textarea, e) {
 function handle_keydown(e) {
     const code = e.keyCode || e.which;
 
-    if (code === 13 || (code === 9 && !e.shiftKey)) {
+    if (code === 13) {
         // Enter key or tab key
         let target_sel;
 
@@ -188,78 +182,26 @@ function handle_keydown(e) {
         const on_compose = target_sel === "#compose-textarea";
 
         if (on_stream || on_topic || on_pm) {
-            // For enter, prevent the form from submitting
-            // For tab, prevent the focus from changing again
-            e.preventDefault();
-        }
-
-        // In the compose_textarea box, preventDefault() for tab but not for enter
-        if (on_compose && code !== 13) {
+            // Prevent the form from submitting
             e.preventDefault();
         }
 
         if (on_stream) {
-            nextFocus = "#stream_message_recipient_topic";
+            $("#stream_message_recipient_topic").trigger("focus");
         } else if (on_topic) {
-            if (code === 13) {
-                e.preventDefault();
-            }
-            nextFocus = "#compose-textarea";
+            $("#compose-textarea").trigger("focus");
         } else if (on_pm) {
-            nextFocus = "#compose-textarea";
+            $("#compose-textarea").trigger("focus");
         } else if (on_compose) {
-            if (code === 13) {
-                nextFocus = false;
-            } else {
-                nextFocus = "#compose-send-button";
-            }
-        } else {
-            nextFocus = false;
-        }
-
-        // If no typeaheads are shown...
-        if (
-            !(
-                $("#stream_message_recipient_topic").data().typeahead.shown ||
-                $("#stream_message_recipient_stream").data().typeahead.shown ||
-                $("#private_message_recipient").data().typeahead.shown ||
-                $("#compose-textarea").data().typeahead.shown
-            )
-        ) {
-            // If no typeaheads are shown and the user is tabbing from the message content box,
-            // then there's no need to wait and we can change the focus right away.
-            // Without this code to change the focus right away, if the user presses enter
-            // before they fully release the tab key, the tab will be lost.  Note that we don't
-            // want to change focus right away in the private_message_recipient box since it
-            // takes the typeaheads a little time to open after the user finishes typing, which
-            // can lead to the focus moving without the autocomplete having a chance to happen.
-            if (nextFocus) {
-                $(nextFocus).trigger("focus");
-                nextFocus = false;
-            }
-
-            if (on_compose && code === 13) {
-                if (exports.should_enter_send(e)) {
-                    e.preventDefault();
-                    if (!$("#compose-send-button").prop("disabled")) {
-                        $("#compose-send-button").prop("disabled", true);
-                        compose.finish();
-                    }
-                    return;
+            if (exports.should_enter_send(e)) {
+                e.preventDefault();
+                if (!$("#compose-send-button").prop("disabled")) {
+                    $("#compose-send-button").prop("disabled", true);
+                    compose.finish();
                 }
-                exports.handle_enter($("#compose-textarea"), e);
+                return;
             }
-        }
-    }
-}
-
-function handle_keyup(e) {
-    const code = e.keyCode || e.which;
-    if (code === 13 || (code === 9 && !e.shiftKey)) {
-        // Enter key or tab key
-        if (nextFocus) {
-            $(nextFocus).trigger("focus");
-            nextFocus = false;
+            exports.handle_enter($("#compose-textarea"), e);
         }
     }
 }
@@ -1045,7 +987,6 @@ exports.initialize = function () {
 
     // These handlers are at the "form" level so that they are called after typeahead
     $("form#send_message_form").on("keydown", handle_keydown);
-    $("form#send_message_form").on("keyup", handle_keyup);
 
     $("#enter_sends").on("click", () => {
         const send_button = $("#compose-send-button");
